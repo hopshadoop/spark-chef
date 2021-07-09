@@ -64,6 +64,40 @@ link node['hadoop_spark']['base_dir'] do
   to node['hadoop_spark']['home']
 end
 
+directory node['data']['dir'] do
+  owner 'root'
+  group 'root'
+  mode '0775'
+  action :create
+  not_if { ::File.directory?(node['data']['dir']) }
+end
+
+directory node['hadoop_spark']['data_volume']['logs_dir'] do
+  owner node['hadoop_spark']['user']
+  group node['hops']['group']
+  mode '0770'
+  recursive true
+end
+
+bash 'Move Spark logs to data volume' do
+  user 'root'
+  code <<-EOH
+    set -e
+    mv -f #{node['hadoop_spark']['logs_dir']}/* #{node['hadoop_spark']['data_volume']['logs_dir']}
+    rm -rf #{node['hadoop_spark']['logs_dir']}
+  EOH
+  only_if { conda_helpers.is_upgrade }
+  only_if { File.directory?(node['hadoop_spark']['logs_dir'])}
+  not_if { File.symlink?(node['hadoop_spark']['logs_dir'])}
+end
+
+link node['hadoop_spark']['logs_dir'] do
+  owner node['hadoop_spark']['user']
+  group node['hops']['group']
+  mode '0770'
+  to node['hadoop_spark']['data_volume']['logs_dir']
+end
+
 # The following dependencies are required to run spark-sql with parquet and orc. We install them here so that users don't have to do it from their notebooks/jobs
 # https://mvnrepository.com/artifact/org.spark-project.hive/hive-exec/1.2.1.spark2
 # http://central.maven.org/maven2/org/iq80/snappy/snappy/0.4/
